@@ -1,0 +1,184 @@
+---
+title: "exercise3_yiming"
+author: "Yiming Qi"
+date: "2024-02-28"
+output: html_document
+---
+
+Q1 Euclidean distance
+
+```{r}
+#loading packages
+library(kableExtra)
+library(readr) 
+library(quanteda) 
+library(quanteda.textstats) 
+library(stringdist)
+library(dplyr) 
+library(tibble) 
+library(ggplot2) 
+```
+
+```{r}
+#loading dataset
+tweets  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/comparison-complexity/cabinet_tweets.rds?raw=true")))
+```
+
+```{r}
+#loot at data
+head(tweets)
+```
+
+```{r}
+#remain unique username
+unique(tweets$username)
+#caculate the number of username
+length(unique(tweets$username))
+```
+
+```{r}
+#make corpus object, specifying tweet as text field，corpus
+tweets_corpus <- corpus(tweets, text_field = "tweet")
+#add in username document-level information
+docvars(tweets_corpus, "username") <- tweets$username
+
+tweets_corpus
+```
+
+```{r}
+#reformat the data into a document feature matrix
+tokens_tweets <- tokens(tweets_corpus, remove_punct = TRUE)
+dfmat <- dfm(tokens_tweets)
+dfmat <- dfm_remove(dfmat, stopwords("english"))
+
+dfmat
+```
+
+```{r}
+#compare euclidean distance between different MPs, choosing the first 5
+euclidean_dist <- dfmat %>%
+  dfm_group(groups = username) %>%
+  textstat_dist(margin = "documents", method = "euclidean")
+
+euclidean_dist[1:5,1:5]
+```
+
+```{r}
+#put the output into a maxtrix
+euclidmat <- as.matrix(euclidean_dist)
+euclidmat
+```
+
+```{r}
+#generate data frame keeping only the row for Theresa May，exclude Therasa May herself’s data, dataste is related to Therasa May
+euclidmatdf <- as.data.frame(euclidmat[23, c(1:22,24)])
+```
+
+```{r}
+#rename the column
+colnames(euclidmatdf) <- "corr_may"
+```
+
+```{r}
+#create column variable "username" from rownames
+euclidmatdf <- tibble::rownames_to_column(euclidmatdf,"username")
+```
+
+```{r}
+#visualize, x axis reordered username from high to low according to euclidean distance, y axis is the value of euclidean distance
+ggplot(euclidmatdf) +
+  geom_point(aes(x=reorder(username, -corr_may), y= corr_may)) + 
+  coord_flip() +
+  xlab("MPs username") +
+  ylab("euclidean distance") + 
+  theme_minimal()
+```
+
+
+Q2
+```{r}
+#loading dataset
+speeches  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/comparison-complexity/speeches.rds?raw=true")))
+```
+
+#coleman-liau
+```{r}
+speeches$coleman.liau <- textstat_readability(speeches$text, measure = "Coleman.Liau")
+speeches$coleman.liau <- speeches$coleman.liau$Coleman.Liau
+```
+
+```{r}
+#get mean and standard deviation of coleman-liau, and N of speeches for each speaker
+sum_corpus <- speeches %>%
+  group_by(speaker) %>%
+  summarise(mean = mean(coleman.liau, na.rm=TRUE),
+                   SD=sd(coleman.liau, na.rm=TRUE),
+                   N=length(speaker)) 
+
+# calculate standard errors and confidence intervals
+sum_corpus$se <- sum_corpus$SD / sqrt(sum_corpus$N)
+sum_corpus$min <- sum_corpus$mean - 1.96*sum_corpus$se
+sum_corpus$max <- sum_corpus$mean + 1.96*sum_corpus$se
+
+sum_corpus
+```
+
+```{r}
+#visualize
+ggplot(sum_corpus, aes(x = speaker, y = mean)) +
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = mean - SD, ymax = mean + SD), width = 0.2) +
+  coord_flip() +
+  xlab("Speaker") +
+  ylab("Mean Complexity") +
+  theme_minimal()
+```
+
+#dale-chall
+```{r}
+speeches$dale.chall <- textstat_readability(speeches$text, measure = "Dale.Chall")
+speeches$dale.chall <- speeches$dale.chall$Dale.Chall
+
+sum_corpus <- speeches %>%
+  group_by(speaker) %>%
+  summarise(mean = mean(dale.chall, na.rm=TRUE),
+                   SD=sd(dale.chall, na.rm=TRUE),
+                   N=length(speaker))
+
+sum_corpus$se <- sum_corpus$SD / sqrt(sum_corpus$N)
+sum_corpus$min <- sum_corpus$mean - 1.96*sum_corpus$se
+sum_corpus$max <- sum_corpus$mean + 1.96*sum_corpus$se
+sum_corpus
+
+ggplot(sum_corpus, aes(x = speaker, y = mean)) +
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = mean - SD, ymax = mean + SD), width = 0.2) +
+  coord_flip() +
+  xlab("Speaker") +
+  ylab("Mean Complexity") +
+  theme_minimal()
+```
+
+#ARI:automated readability index
+```{r}
+speeches$ari <- textstat_readability(speeches$text, measure = "ARI")
+speeches$ari <- speeches$ari$ARI
+sum_corpus <- speeches %>%
+  group_by(speaker) %>%
+  summarise(mean = mean(ari, na.rm=TRUE),
+                   SD=sd(ari, na.rm=TRUE),
+                   N=length(speaker))
+
+sum_corpus$se <- sum_corpus$SD / sqrt(sum_corpus$N)
+sum_corpus$min <- sum_corpus$mean - 1.96*sum_corpus$se
+sum_corpus$max <- sum_corpus$mean + 1.96*sum_corpus$se
+sum_corpus
+
+ggplot(sum_corpus, aes(x = speaker, y = mean)) +
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = mean - SD, ymax = mean + SD), width = 0.2) +
+  coord_flip() +
+  xlab("Speaker") +
+  ylab("Mean Complexity") +
+  theme_minimal()
+```
